@@ -7,20 +7,7 @@
 
 <h4 align="center">Orangebeard Python client for Python based Orangebeard Listeners.</h4>
 
-<p align="center">
-  <a href="https://repo.maven.apache.org/maven2/io/orangebeard/python-client/">
-    <img src="https://img.shields.io/maven-central/v/io.orangebeard/python-client?style=flat-square"
-      alt="MVN Version" />
-  </a>
-  <a href="https://github.com/orangebeard-io/python-client/actions">
-    <img src="https://img.shields.io/github/workflow/status/orangebeard-io/python-client/release?style=flat-square"
-      alt="Build Status" />
-  </a>
-  <a href="https://github.com/orangebeard-io/python-client/blob/master/LICENSE.txt">
-    <img src="https://img.shields.io/github/license/orangebeard-io/python-client?style=flat-square"
-      alt="License" />
-  </a>
-</p>
+
 
 <div align="center">
   <h4>
