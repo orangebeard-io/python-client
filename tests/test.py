@@ -7,13 +7,9 @@ from orangebeard.entity.TestStatus import TestStatus
 from orangebeard.entity.TestType import TestType
 from orangebeard.entity.LogLevel import LogLevel
 
-# endpoint = 'https://test.orangebeard-staging.app'
-# token = 'b514a716-93d8-11ec-98ed-422f0523bd0e'
-# project = 'listeners'
-
-endpoint = 'https://demo.orangebeard-staging.app'
-token = '98d88993-ccec-4778-866a-805c9f6ea1d1'
-project = 'tomheintzberger_personal'
+endpoint = 'https://yourinstance.orangebeard.app'
+token = 'your-listener-api-token-uuid'
+project = 'project-name'
 
 tz = reference.LocalTimezone()
 
