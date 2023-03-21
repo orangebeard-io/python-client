@@ -22,11 +22,15 @@ class AttachmentMetaData(Serializable):
         testRunUUID: UUID,
         testUUID: UUID,
         logUUID: UUID,
-        stepUUID: UUID=None, # type: ignore
-        attachmentTime=datetime.now(tz),
+        stepUUID: UUID = None,  # type: ignore
+        attachmentTime=None,
     ):
         self.testRunUUID = str(testRunUUID)
         self.testUUID = str(testUUID)
         self.stepUUID = str(stepUUID) if stepUUID else None
         self.logUUID = str(logUUID)
-        self.attachmentTime = attachmentTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+        self.attachmentTime = (
+            attachmentTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+            if attachmentTime
+            else datetime.now(tz).strftime("%Y-%m-%dT%H:%M:%S%z")
+        )

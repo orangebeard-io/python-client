@@ -6,7 +6,6 @@ from uuid import UUID
 import urllib3
 import json
 
-from _local import set_currentClient
 from orangebeard.entity.FinishStep import FinishStep
 from orangebeard.entity.LogLevel import LogLevel
 from orangebeard.entity.StartStep import StartStep
@@ -21,6 +20,7 @@ from orangebeard.entity.TestType import TestType
 from orangebeard.entity.FinishTest import FinishTest
 from orangebeard.entity.TestStatus import TestStatus
 from orangebeard.entity.Log import Log
+
 
 tz = reference.LocalTimezone()
 client = urllib3.PoolManager()
@@ -38,8 +38,6 @@ class OrangebeardClient:
         :param testrunUUID: The (Optional) UUID of the (announced) testrun to report to
         """
 
-        set_currentClient(self)
-
         self.endpoint = endpoint
         self.accessToken = accessToken
         self.project = project
@@ -54,7 +52,7 @@ class OrangebeardClient:
     def startTestrun(
         self,
         testSetName,
-        startTime=datetime.now(tz),
+        startTime=None,
         description=None,
         attributes=[],
         changedComponents=[],
@@ -68,7 +66,11 @@ class OrangebeardClient:
         """
 
         startRun = StartTestRun(
-            testSetName, startTime, description, attributes, changedComponents
+            testSetName,
+            startTime or datetime.now(tz),
+            description,
+            attributes,
+            changedComponents,
         )
         url = "{0}/listener/v3/{1}/test-run/start".format(self.endpoint, self.project)
 
@@ -95,14 +97,14 @@ class OrangebeardClient:
         )
         client.request("PUT", url, headers=self.getHeaders("application/json"))
 
-    def finishTestRun(self, testRunUUID: UUID, endTime=datetime.now(tz)):
+    def finishTestRun(self, testRunUUID: UUID, endTime=None):
         """Finish a testrun by UUID
 
         :param testRunUUID: The UUID of the run to finish
         :param endTime:     The end date
         """
 
-        finishRun = FinishTestRun(endTime)
+        finishRun = FinishTestRun(endTime or datetime.now(tz))
 
         url = "{0}/listener/v3/{1}/test-run/finish/{2}".format(
             self.endpoint, self.project, testRunUUID
@@ -144,10 +146,16 @@ class OrangebeardClient:
         testType: TestType,
         attributes=[],
         description=None,
-        startTime=datetime.now(tz),
+        startTime=None,
     ) -> UUID:
         startTest = StartTest(
-            testRunUUID, suiteUUID, name, startTime, testType, description, attributes
+            testRunUUID,
+            suiteUUID,
+            name,
+            startTime or datetime.now(tz),
+            testType,
+            description,
+            attributes,
         )
         url = "{0}/listener/v3/{1}/test/start".format(self.endpoint, self.project)
 
@@ -161,10 +169,8 @@ class OrangebeardClient:
 
         return UUID(responseJson["getTestUUID"])
 
-    def finishTest(
-        self, testUUID, testRunUUID, status: TestStatus, endTime=datetime.now(tz)
-    ):
-        finishTest = FinishTest(testRunUUID, status, endTime)
+    def finishTest(self, testUUID, testRunUUID, status: TestStatus, endTime=None):
+        finishTest = FinishTest(testRunUUID, status, endTime or datetime.now(tz))
         url = "{0}/listener/v3/{1}/test/finish/{2}".format(
             self.endpoint, self.project, testUUID
         )
@@ -183,10 +189,15 @@ class OrangebeardClient:
         stepName,
         parentStepUUID: UUID = None,  # type: ignore
         description=None,
-        startTime=datetime.now(tz),
+        startTime=None,
     ) -> UUID:
         startStep = StartStep(
-            testRunUUID, testUUID, parentStepUUID, stepName, startTime, description
+            testRunUUID,
+            testUUID,
+            parentStepUUID,
+            stepName,
+            startTime or datetime.now(tz),
+            description,
         )
         url = "{0}/listener/v3/{1}/step/start".format(self.endpoint, self.project)
 
@@ -205,9 +216,9 @@ class OrangebeardClient:
         stepUUID: UUID,
         testRunUUID: UUID,
         status: TestStatus,
-        endTime=datetime.now(tz),
+        endTime=None,
     ):
-        finishStep = FinishStep(testRunUUID, status, endTime)
+        finishStep = FinishStep(testRunUUID, status, endTime or datetime.now(tz))
         url = "{0}/listener/v3/{1}/step/finish/{2}".format(
             self.endpoint, self.project, stepUUID
         )
@@ -226,11 +237,17 @@ class OrangebeardClient:
         logLevel: LogLevel,
         message,
         stepUUID: UUID = None,  # type: ignore
-        logTime=datetime.now(tz),
+        logTime=None,
         logFormat=LogFormat.PLAIN_TEXT,
     ) -> UUID:
         logItem = Log(
-            testRunUUID, testUUID, message, logLevel, logFormat, stepUUID, logTime
+            testRunUUID,
+            testUUID,
+            message,
+            logLevel,
+            logFormat,
+            stepUUID,
+            logTime or datetime.now(tz),
         )
         url = "{0}/listener/v3/{1}/log".format(self.endpoint, self.project)
 
