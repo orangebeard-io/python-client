@@ -10,10 +10,10 @@ tz = reference.LocalTimezone()
 
 
 class AttachmentFile:
-    def __init__(self, name, content, contentType=None):
+    def __init__(self, name, content):
         self.name = name
         self.content: bytes = content
-        self.contentType = contentType or mimetypes.guess_type(name)
+        self.contentType = mimetypes.guess_type(name)[0] or 'application/octet-stream'
 
 
 class AttachmentMetaData(Serializable):
