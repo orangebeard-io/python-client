@@ -90,3 +90,4 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+build_cmd.txt

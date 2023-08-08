@@ -20,4 +20,6 @@
 
 ### Install the pip package
 
+Note: this client should be used as a dependency in listener projects
+
 `pip install orangebeard-client`

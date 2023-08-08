@@ -1,3 +1,5 @@
+from typing import List
+from orangebeard.entity.Attribute import Attribute
 from orangebeard.entity.Serializable import Serializable
 
 
@@ -7,7 +9,7 @@ class StartTestRun(Serializable):
         testSetName,
         startTime,
         description,
-        attributes,
+        attributes: List[Attribute],
         changedComponents,
     ):
         self.testSetName = testSetName
