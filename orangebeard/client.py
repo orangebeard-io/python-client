@@ -24,6 +24,7 @@ from orangebeard.entity.Log import Log
 
 tz = reference.LocalTimezone()
 client = urllib3.PoolManager()
+LOG_BUFFER = 10
 
 
 class OrangebeardClient:
@@ -37,7 +38,8 @@ class OrangebeardClient:
         :param project:     The Orangebeard project to report to
         :param testrunUUID: The (Optional) UUID of the (announced) testrun to report to
         """
-
+        self.logstack = {}
+        self.logUuidMap = {}
         self.endpoint = endpoint
         self.accessToken = accessToken
         self.project = project
@@ -103,7 +105,7 @@ class OrangebeardClient:
         :param testRunUUID: The UUID of the run to finish
         :param endTime:     The end date
         """
-
+        self.flushLogStack()
         finishRun = FinishTestRun(endTime or datetime.now(tz))
 
         url = "{0}/listener/v3/{1}/test-run/finish/{2}".format(
@@ -249,22 +251,24 @@ class OrangebeardClient:
             stepUUID,
             logTime or datetime.now(tz),
         )
-        url = "{0}/listener/v3/{1}/log".format(self.endpoint, self.project)
+        temp_id = UUID()
+        self.logstack[temp_id] = logItem
 
-        response = client.request(
-            "POST",
-            url,
-            body=logItem.toJson(),
-            headers=self.getHeaders("application/json"),
-        )
+        if len(self.logstack) >= LOG_BUFFER:
+            self.flushLogStack()
 
-        responseJson = json.loads(response.data.decode("utf-8"))
-
-        return UUID(responseJson["logUUID"])
+        return temp_id
 
     def logAttachment(
         self, attachmentFile: AttachmentFile, attachmentMetaData: AttachmentMetaData
     ) -> UUID:
+        realUUID = self.logUuidMap.get(attachmentMetaData.logUUID) or None
+        if realUUID == None:
+            self.flushLogStack()
+            realUUID = self.logUuidMap.get(attachmentMetaData.logUUID)
+
+        attachmentMetaData.logUUID = str(realUUID)
+
         payload = {
             "json": attachmentMetaData.toJson(),
             "attachment": (
@@ -283,3 +287,21 @@ class OrangebeardClient:
         responseJson = json.loads(response.data.decode("utf-8"))
 
         return UUID(responseJson["attachmentUUID"])
+
+    def flushLogStack(self):
+        logIds = list(self.logstack.keys())
+        logItems = list(self.logstack.values())
+        url = "{0}/listener/v3/{1}/log/batch".format(self.endpoint, self.project)
+
+        response = client.request(
+            "POST",
+            url,
+            body=json.dumps(logItems),
+            headers=self.getHeaders("application/json"),
+        )
+        responseJson = json.loads(response.data.decode("utf-8"))
+        reportedLogs = {
+            logIds[i]: UUID(responseJson[i]["logUUID"]) for i in range(len(logIds))
+        }
+        self.logUuidMap.update(reportedLogs)
+        self.logstack.clear()

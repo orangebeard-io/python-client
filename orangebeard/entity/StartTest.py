@@ -1,4 +1,6 @@
+from typing import List
 from uuid import UUID
+from orangebeard.entity.Attribute import Attribute
 from orangebeard.entity.Serializable import Serializable
 from orangebeard.entity.TestType import TestType
 
@@ -12,7 +14,7 @@ class StartTest(Serializable):
         startTime,
         testType: TestType,
         decription,
-        attributes,
+        attributes: List[Attribute],
     ):
         self.testRunUUID = str(testRunUUID)
         self.suiteUUID = str(suiteUUID)
