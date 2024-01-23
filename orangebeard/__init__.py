@@ -1,4 +1,4 @@
-from orangebeard.client import OrangebeardClient
+from orangebeard.OrangebeardClient import OrangebeardClient
 
 __all__ = [
     'OrangebeardClient',

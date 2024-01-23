@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 from uuid import UUID
 from orangebeard.entity.Attribute import Attribute
@@ -10,16 +11,16 @@ class StartTest(Serializable):
         self,
         testRunUUID: UUID,
         suiteUUID: UUID,
-        testName,
-        startTime,
+        testName: str,
+        startTime: datetime,
         testType: TestType,
-        decription,
-        attributes: List[Attribute],
+        decription: str = None,
+        attributes: List[Attribute] = None,
     ):
-        self.testRunUUID = str(testRunUUID)
-        self.suiteUUID = str(suiteUUID)
+        self.testRunUUID = testRunUUID
+        self.suiteUUID = suiteUUID
         self.testName = testName
         self.testType = testType
-        self.decription = decription
+        self.description = decription
         self.attributes = attributes
         self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
