@@ -275,14 +275,12 @@ class OrangebeardClient:
         self.__call_events[test_run_uuid].set()
 
     async def __exec_finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun) -> None:
-        print(f'Waiting for {len(self.__call_events.values())} Orangebeard events to finish...')
+        print(f'Waiting for {len(self.__call_events.values()) + 1} Orangebeard events to finish...')
 
         for event in self.__call_events.values():
             await event.wait()
 
         real_test_run_uuid = self.__uuid_mapping[test_run_uuid]
-
-        print('Done. Finishing Test Run!')
         await self.__make_api_request(
             'PUT',
             f'/listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
