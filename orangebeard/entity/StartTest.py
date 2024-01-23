@@ -14,13 +14,13 @@ class StartTest(Serializable):
         testName: str,
         startTime: datetime,
         testType: TestType,
-        decription: str = None,
+        description: str = None,
         attributes: List[Attribute] = None,
     ):
         self.testRunUUID = testRunUUID
         self.suiteUUID = suiteUUID
         self.testName = testName
         self.testType = testType
-        self.description = decription
+        self.description = description
         self.attributes = attributes
         self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
