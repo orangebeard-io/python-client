@@ -73,7 +73,6 @@ class OrangebeardClient:
                 "Content-Type": "application/json",
             })
 
-    # Public methods
     def start_test_run(self, start_test_run: StartTestRun) -> UUID:
         """
         Start a new test run.
@@ -167,7 +166,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_test_event
 
         parent_event = self.__call_events[test_uuid]
-        self.__event_loop.run_until_complete(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event))
+        asyncio.ensure_future(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event))
 
     def start_step(self, start_step: StartStep) -> UUID:
         """
@@ -204,7 +203,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_step_event
 
         parent_event = self.__call_events[step_uuid]
-        self.__event_loop.run_until_complete(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event))
+        asyncio.ensure_future(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event))
 
     def log(self, log: Log) -> UUID:
         """
@@ -224,7 +223,7 @@ class OrangebeardClient:
             else log.stepUUID
         parent_event = self.__call_events[parent_event_uuid]
 
-        self.__event_loop.run_until_complete(self.__exec_log(log, temp_uuid, parent_event))
+        asyncio.ensure_future(self.__exec_log(log, temp_uuid, parent_event))
         return temp_uuid
 
     def send_attachment(self, attachment: Attachment) -> UUID:
@@ -242,10 +241,9 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = attachment_event
 
         parent_event = self.__call_events[attachment.AttachmentMetaData.logUUID]
-        self.__event_loop.run_until_complete(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
+        asyncio.ensure_future(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
         return temp_uuid
 
-    # Private methods
     async def __make_api_request(self, method: str, uri: str, data: Serializable = None):
         if self.__connection_with_orangebeard_is_valid:
             async with self.__client.request(method, uri,
