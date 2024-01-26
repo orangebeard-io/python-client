@@ -16,6 +16,6 @@ class StartTestRun(Serializable):
     ):
         self.testSetName = testSetName
         self.description = description
-        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
         self.attributes = attributes
         self.sutComponents = sutComponents

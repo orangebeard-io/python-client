@@ -27,7 +27,6 @@ class OrangebeardClient:
             endpoint (str): The Orangebeard API endpoint.
             access_token (UUID): The access token for authentication.
             project_name (str): The name of the Orangebeard project.
-            connection_with_orangebeard_is_valid (bool): Flag indicating whether the connection with Orangebeard is valid.
 
         Attributes:
             __endpoint (str): The Orangebeard API endpoint.
@@ -43,8 +42,7 @@ class OrangebeardClient:
             self,
             endpoint: str,
             access_token: UUID,
-            project_name: str,
-            connection_with_orangebeard_is_valid: bool,
+            project_name: str
     ) -> None:
         """
             Initialize the OrangebeardClient.
@@ -53,15 +51,17 @@ class OrangebeardClient:
                 endpoint (str): The Orangebeard API endpoint.
                 access_token (UUID): The access token for authentication.
                 project_name (str): The name of the Orangebeard project.
-                connection_with_orangebeard_is_valid (bool): Flag indicating whether the connection with Orangebeard is valid.
             """
         self.__endpoint = endpoint
         self.__access_token = access_token
         self.__project_name = project_name
-        self.__connection_with_orangebeard_is_valid: bool = connection_with_orangebeard_is_valid
+        self.__connection_with_orangebeard_is_valid: bool = True
 
         self.__uuid_mapping = {}
         self.__call_events = {}
+        self.__event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.__event_loop)
+        
         self.__client = aiohttp.ClientSession(
             base_url=self.__endpoint,
             headers={
@@ -85,7 +85,7 @@ class OrangebeardClient:
 
         self.__call_events[temp_uuid] = start_test_run_event
 
-        asyncio.ensure_future(self.__exec_start_test_run(start_test_run, temp_uuid))
+        self.__event_loop.run_until_complete(self.__exec_start_test_run(start_test_run, temp_uuid))
         return temp_uuid
 
     def start_announced_test_run(self, test_run_uuid: UUID) -> None:
@@ -97,7 +97,7 @@ class OrangebeardClient:
         """
         start_test_run_event = asyncio.Event()
         self.__call_events[test_run_uuid] = start_test_run_event
-        asyncio.ensure_future(self.__exec_start_announced_test_run(test_run_uuid))
+        self.__event_loop.run_until_complete(self.__exec_start_announced_test_run(test_run_uuid))
 
     def finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun) -> None:
         """
@@ -107,7 +107,7 @@ class OrangebeardClient:
             test_run_uuid (UUID): The UUID of the test run to be finished.
             finish_test_run (FinishTestRun): The FinishTestRun object containing information about finishing the test run.
         """
-        asyncio.get_event_loop().run_until_complete(
+        self.__event_loop.run_until_complete(
             self.__exec_finish_test_run(test_run_uuid, finish_test_run))
 
     def start_suite(self, start_suite: StartSuite) -> list[UUID]:
@@ -128,8 +128,7 @@ class OrangebeardClient:
         parent_event_uuid: UUID = start_suite.testRunUUID if start_suite.parentSuiteUUID is None \
             else start_suite.parentSuiteUUID
         parent_event = self.__call_events[parent_event_uuid]
-
-        asyncio.ensure_future(self.__exec_start_suite(start_suite, temp_uuids, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_start_suite(start_suite, temp_uuids, parent_event))
         return temp_uuids
 
     def start_test(self, start_test: StartTest) -> UUID:
@@ -147,7 +146,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = start_test_event
 
         parent_event = self.__call_events[start_test.suiteUUID]
-        asyncio.ensure_future(self.__exec_start_test(start_test, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_start_test(start_test, temp_uuid, parent_event))
         return temp_uuid
 
     def finish_test(self, test_uuid: UUID, finish_test: FinishTest) -> None:
@@ -163,7 +162,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_test_event
 
         parent_event = self.__call_events[test_uuid]
-        asyncio.ensure_future(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event))
 
     def start_step(self, start_step: StartStep) -> UUID:
         """
@@ -181,9 +180,10 @@ class OrangebeardClient:
 
         parent_event_uuid = start_step.testUUID if start_step.parentStepUUID is None \
             else start_step.parentStepUUID
+
         parent_event = self.__call_events[parent_event_uuid]
 
-        asyncio.ensure_future(self.__exec_start_step(start_step, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_start_step(start_step, temp_uuid, parent_event))
         return temp_uuid
 
     def finish_step(self, step_uuid: UUID, finish_step: FinishStep) -> None:
@@ -199,7 +199,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_step_event
 
         parent_event = self.__call_events[step_uuid]
-        asyncio.ensure_future(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event))
 
     def log(self, log: Log) -> UUID:
         """
@@ -219,7 +219,7 @@ class OrangebeardClient:
             else log.stepUUID
         parent_event = self.__call_events[parent_event_uuid]
 
-        asyncio.ensure_future(self.__exec_log(log, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_log(log, temp_uuid, parent_event))
         return temp_uuid
 
     def send_attachment(self, attachment: Attachment) -> UUID:
@@ -237,13 +237,12 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = attachment_event
 
         parent_event = self.__call_events[attachment.AttachmentMetaData.logUUID]
-        asyncio.ensure_future(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
+        self.__event_loop.run_until_complete(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
         return temp_uuid
 
     # Private methods
     async def __make_api_request(self, method: str, uri: str, data: Serializable = None):
         if self.__connection_with_orangebeard_is_valid:
-
             async with self.__client.request(method, uri,
                                              data=data.to_json() if data is not None else None) as response:
                 if 200 <= response.status < 300:
@@ -292,6 +291,7 @@ class OrangebeardClient:
     async def __exec_start_suite(self, start_suite: StartSuite, suite_temp_ids: list[UUID],
                                  parent_event: Event) -> None:
         await parent_event.wait()
+
         start_suite.testRunUUID = self.__uuid_mapping[start_suite.testRunUUID]
         if start_suite.parentSuiteUUID is not None:
             start_suite.parentSuiteUUID = self.__uuid_mapping[start_suite.parentSuiteUUID]
@@ -368,7 +368,7 @@ class OrangebeardClient:
         await parent_event.wait()
         log.testRunUUID = self.__uuid_mapping[log.testRunUUID]
         log.testUUID = self.__uuid_mapping[log.testUUID]
-        log.stepUUID = self.__uuid_mapping[log.stepUUID]
+        log.stepUUID = self.__uuid_mapping[log.stepUUID] if log.stepUUID is not None else None
 
         response = await self.__make_api_request(
             'POST',

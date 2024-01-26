@@ -15,7 +15,7 @@ class StartStep(Serializable):
     ):
         self.testRunUUID = testRunUUID
         self.testUUID = testUUID
-        self.parentStepUUID = str(parentStepUUID) if parentStepUUID else None
+        self.parentStepUUID = parentStepUUID if parentStepUUID else None
         self.stepName = stepName
         self.description = description
-        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")

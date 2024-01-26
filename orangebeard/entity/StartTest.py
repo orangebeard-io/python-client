@@ -23,4 +23,4 @@ class StartTest(Serializable):
         self.testType = testType
         self.description = description
         self.attributes = attributes
-        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
