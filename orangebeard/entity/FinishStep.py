@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from orangebeard.entity.Serializable import Serializable
 
 

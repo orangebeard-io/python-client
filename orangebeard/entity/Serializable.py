@@ -14,5 +14,11 @@ class Serializable:
                     serializable_dict[key] = value
         return serializable_dict
 
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(f'[{key}] not found in {self.__class__.__name__}')
+
     def to_json(self):
         return json.dumps(self.__make_serializable(), default=lambda o: o.__dict__)

@@ -1,10 +1,13 @@
 import asyncio
 import uuid
 from asyncio.locks import Event
+from types import MappingProxyType
 
 import aiohttp
 
 from uuid import UUID
+
+from aiohttp import ContentTypeError
 
 from orangebeard.entity.Attachment import Attachment
 from orangebeard.entity.FinishStep import FinishStep
@@ -32,7 +35,8 @@ class OrangebeardClient:
             __endpoint (str): The Orangebeard API endpoint.
             __access_token (UUID): The access token for authentication.
             __project_name (str): The name of the Orangebeard project.
-            __connection_with_orangebeard_is_valid (bool): Flag indicating whether the connection with Orangebeard is valid.
+            __connection_with_orangebeard_is_valid (bool): Flag indicating whether the connection with
+            Orangebeard is valid.
             __uuid_mapping (dict): Mapping of temporary UUIDs to actual UUIDs.
             __call_events (dict): Mapping of UUIDs to asyncio.Event objects.
             __client (aiohttp.ClientSession): A client session for making API requests.
@@ -105,7 +109,8 @@ class OrangebeardClient:
 
         Args:
             test_run_uuid (UUID): The UUID of the test run to be finished.
-            finish_test_run (FinishTestRun): The FinishTestRun object containing information about finishing the test run.
+            finish_test_run (FinishTestRun): The FinishTestRun object containing information about finishing the
+            test run.
         """
         self.__event_loop.run_until_complete(
             self.__exec_finish_test_run(test_run_uuid, finish_test_run))
@@ -248,7 +253,7 @@ class OrangebeardClient:
                 if 200 <= response.status < 300:
                     try:
                         return await response.json()
-                    except Exception:
+                    except ContentTypeError:
                         return None
                 else:
                     print(f'Error Sending: {data.to_json()} to {uri}')
@@ -394,14 +399,14 @@ class OrangebeardClient:
 
             multipart_message.append(
                 attachment.AttachmentMetaData.to_json(),
-                {'Content-Disposition': 'form-data; name="json"', 'Content-Type': 'application/json'}
+                MappingProxyType({'Content-Disposition': 'form-data; name="json"', 'Content-Type': 'application/json'})
             )
             multipart_message.append(
                 attachment.AttachmentFile.content,
-                {
+                MappingProxyType({
                     'Content-Disposition': f'form-data; name="attachment"; filename="{attachment.AttachmentFile.name}"',
                     'Content-Type': attachment.AttachmentFile.contentType
-                }
+                })
             )
 
             headers = {
