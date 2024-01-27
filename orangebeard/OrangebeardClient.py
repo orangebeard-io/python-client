@@ -56,10 +56,12 @@ class OrangebeardClient:
                 access_token (UUID): The access token for authentication.
                 project_name (str): The name of the Orangebeard project.
             """
+        self.__MAX_ERRORS = 10
         self.__endpoint = endpoint
         self.__access_token = access_token
         self.__project_name = project_name
         self.__connection_with_orangebeard_is_valid: bool = True
+        self.__errors = 0
 
         self.__uuid_mapping = {}
         self.__call_events = {}
@@ -255,7 +257,9 @@ class OrangebeardClient:
                         return None
                 else:
                     print(f'Error Sending: {data.to_json()} to {uri}')
-                    self.__connection_with_orangebeard_is_valid = False
+                    self.__errors += 1
+                    if self.__errors > self.__MAX_ERRORS:
+                        self.__connection_with_orangebeard_is_valid = False
                     raise ConnectionError(f'Failed to communicate with Orangebeard: {await response.text()}')
 
     async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID) -> None:
@@ -369,6 +373,8 @@ class OrangebeardClient:
 
     async def __exec_log(self, log: Log, temp_uuid: UUID, parent_event: Event) -> None:
         await parent_event.wait()
+        if log.message.strip() == '':
+            log.message = '_empty_'
         log.testRunUUID = self.__uuid_mapping[log.testRunUUID]
         log.testUUID = self.__uuid_mapping[log.testUUID]
         log.stepUUID = self.__uuid_mapping[log.stepUUID] if log.stepUUID is not None else None
