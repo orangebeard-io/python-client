@@ -1,68 +1,120 @@
-import asyncio
-from orangebeard.async_client import AsyncOrangebeardClient
-from orangebeard.client import OrangebeardClient
-from orangebeard.entity.Attachment import AttachmentFile, AttachmentMetaData
+import re
+from pytz import reference
+import uuid
+
+from orangebeard.OrangebeardClient import OrangebeardClient
+from orangebeard.entity.Attachment import AttachmentFile, AttachmentMetaData, Attachment
+from orangebeard.entity.FinishStep import FinishStep
+from orangebeard.entity.FinishTest import FinishTest
+from orangebeard.entity.FinishTestRun import FinishTestRun
+from orangebeard.entity.Log import Log
+from orangebeard.entity.LogFormat import LogFormat
+from orangebeard.entity.StartStep import StartStep
+from orangebeard.entity.StartSuite import StartSuite
+from orangebeard.entity.StartTest import StartTest
+from orangebeard.entity.StartTestRun import StartTestRun
 from orangebeard.entity.TestStatus import TestStatus
 from orangebeard.entity.TestType import TestType
 from orangebeard.entity.LogLevel import LogLevel
 
 from datetime import datetime
 
+endpoint = 'https://praegus.orangebeard.app'
+token = 'f11a09e7-cb14-4e02-953d-03ad1a49bad1'
+project = 'tom_personal'
 
-# endpoint = 'https://test.orangebeard-staging.app'
-# token = 'b514a716-93d8-11ec-98ed-422f0523bd0e'
-# project = 'listeners'
-
-endpoint = 'https://demo.orangebeard-staging.app'
-token = '98d88993-ccec-4778-866a-805c9f6ea1d1'
-project = 'tomheintzberger_personal'
+tz = reference.LocalTimezone()
 
 
-async def main():
-    client = AsyncOrangebeardClient(endpoint, token, project)
-    
-    starttime = datetime.now()
-    print('Start: {0}', starttime.timestamp())
-    testRunUUID = await client.startTestrun('Python client test')
-    print('Started run: {0}\n'.format(testRunUUID))
+def pad_suite_name(suite_name) -> str:
+    if len(suite_name) < 3:
+        return suite_name + "  "
+    return suite_name
 
-    suiteNames =  ['Top Level Suite', 'Level 2 Suite']
-    suiteUUIDs = await client.startSuite(testRunUUID, suiteNames)
-    print('\tStarted suite: {0}\n'.format(suiteUUIDs))
 
-    testUUID = await client.startTest(testRunUUID, suiteUUIDs[0], "Test 1", TestType.TEST)
-    print('\tStarted test: {0}\n'.format(testUUID))
+def parse_logfile(filename):
+    result = []
+    current_item = ""
 
-    stepUUID = await client.startStep(testRunUUID, testUUID, 'Test step 1')
-    print('\tStarted step: {0}\n'.format(stepUUID))
+    with open(filename, 'r') as file:
+        for line in file:
+            line = line.strip()
 
-    step2UUID = await client.startStep(testRunUUID, testUUID, 'Test step 2')
-    print('\tStarted substep: {0}\n'.format(stepUUID))
+            # Use regular expression to match the pattern
+            match = re.match(r'\[([a-zA-Z]+)]: (.*)', line)
 
-    logUUID = await client.log(testRunUUID, testUUID, LogLevel.INFO, 'Some more informational log', step2UUID)
+            if match:
+                # If a pattern match is found, add the current item to the result list
+                if current_item:
+                    result.append(current_item)
+                # Start a new item with the matched pattern and the following lines
+                current_item = f"[{match.group(1)}]: {match.group(2)}\n"
+            else:
+                # If no match, add the line to the current item
+                current_item += line + "\n"
 
-    logUUID2 = await client.log(testRunUUID, testUUID, LogLevel.INFO, 'Some informational log', stepUUID)
-    print('\tLog sent: {0}\n'.format(logUUID))
+    # Add the last item to the result list
+    if current_item:
+        result.append(current_item)
 
-    attachmentFile = AttachmentFile('logo.svg', open('./.github/logo.svg', 'rb').read())
-    attachmentMeta = AttachmentMetaData(testRunUUID, testUUID, logUUID, stepUUID)
+    return result
 
-    attachmentUUID = await client.logAttachment(attachmentFile, attachmentMeta)
-    print('\tAttached file to log - Attachment: {0}\n'.format(attachmentUUID))
 
-    await client.finishStep(step2UUID, testRunUUID, TestStatus.PASSED)
-    await client.finishStep(stepUUID, testRunUUID, TestStatus.PASSED)
+def main():
+    filename = "./test_log.txt"
+    log_list = parse_logfile(filename)
 
-    await  client.finishTest(testUUID, testRunUUID, TestStatus.PASSED)
+    client = OrangebeardClient(endpoint, token, project)
 
-    await client.finishTestRun(testRunUUID)
-    endtime = datetime.now()
-    print('Finish: {0}', endtime.timestamp())
+    start_time = datetime.now(tz)
+    print('Start: {0}', start_time.timestamp())
+    test_run_uuid = client.start_test_run(StartTestRun('Python Client Test Set', start_time, 'A description'))
+    print('Started run: {0}\n'.format(test_run_uuid))
 
-    elapsed = endtime-starttime
+    suite_key = 'UI.TestSuite.Banaan'
+    suite_names = list(map(pad_suite_name, suite_key.split(".")))
+    suite_uuids = client.start_suite(StartSuite(test_run_uuid, suite_names))
+    print('\tStarted suite: {0}\n'.format(suite_uuids))
+
+    test_uuid = client.start_test(
+        StartTest(test_run_uuid, suite_uuids[len(suite_uuids)-1], "Salarisverwerking data iteration #2", start_time, TestType.TEST,
+                  'A test description'))
+    print('\tStarted test: {0}\n'.format(test_uuid))
+    step_uuid = None
+    level = None
+    log_uuid = None
+
+    for item in log_list:
+        print(item)
+        if item.startswith('[Step]'):
+            print(item)
+            if step_uuid is not None:
+                print(item)
+                step_status = TestStatus.FAILED if level == LogLevel.ERROR else TestStatus.PASSED
+                client.finish_step(step_uuid, FinishStep(test_run_uuid, step_status, datetime.now(tz)))
+            step_uuid = client.start_step(StartStep(test_run_uuid, test_uuid, item, datetime.now(tz)))
+            print('Start step: ' + item)
+        else:
+            level = LogLevel.ERROR if item.startswith('[Module]: Failed') or item.startswith(
+                '[Screenshot]: Failed') else LogLevel.INFO
+            log_uuid = client.log(
+                Log(test_run_uuid, test_uuid, item, level, LogFormat.PLAIN_TEXT, step_uuid, datetime.now(tz)))
+
+    attachment_file = AttachmentFile('logo.svg', open('../.github/logo.svg', 'rb').read())
+    attachment_meta = AttachmentMetaData(test_run_uuid, test_uuid, log_uuid, step_uuid)
+
+    client.send_attachment(Attachment(attachment_file, attachment_meta))
+
+    client.finish_step(step_uuid, FinishStep(test_run_uuid, TestStatus.FAILED, datetime.now(tz)))
+
+    client.finish_test(test_uuid, FinishTest(test_run_uuid, TestStatus.FAILED, datetime.now(tz)))
+
+    client.finish_test_run(test_run_uuid, FinishTestRun(datetime.now(tz)))
+    end_time = datetime.now(tz)
+    print('Finish: {0}', end_time.timestamp())
+
+    elapsed = end_time - start_time
     print('Elapsed: {0}', elapsed)
 
-import platform
-if platform.system()=='Windows':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-asyncio.run(main())
+
+main()

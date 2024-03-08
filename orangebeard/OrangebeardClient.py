@@ -9,6 +9,7 @@ from uuid import UUID
 
 from aiohttp import ContentTypeError
 
+from orangebeard.config import AutoConfig
 from orangebeard.entity.Attachment import Attachment
 from orangebeard.entity.FinishStep import FinishStep
 from orangebeard.entity.FinishTest import FinishTest
@@ -44,9 +45,9 @@ class OrangebeardClient:
 
     def __init__(
             self,
-            endpoint: str,
-            access_token: UUID,
-            project_name: str
+            endpoint: str = None,
+            access_token: UUID = None,
+            project_name: str = None
     ) -> None:
         """
             Initialize the OrangebeardClient.
@@ -56,6 +57,13 @@ class OrangebeardClient:
                 access_token (UUID): The access token for authentication.
                 project_name (str): The name of the Orangebeard project.
             """
+
+        if endpoint is None or access_token is None or project_name is None:
+            config = AutoConfig.config
+            endpoint = config.endpoint
+            access_token = config.token
+            project_name = config.project
+
         self.__MAX_ERRORS = 10
         self.__endpoint = endpoint
         self.__access_token = access_token
@@ -67,7 +75,7 @@ class OrangebeardClient:
         self.__call_events = {}
         self.__event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.__event_loop)
-        
+
         self.__client = aiohttp.ClientSession(
             base_url=self.__endpoint,
             headers={
@@ -134,6 +142,7 @@ class OrangebeardClient:
         parent_event_uuid: UUID = start_suite.testRunUUID if start_suite.parentSuiteUUID is None \
             else start_suite.parentSuiteUUID
         parent_event = self.__call_events[parent_event_uuid]
+
         self.__event_loop.run_until_complete(self.__exec_start_suite(start_suite, temp_uuids, parent_event))
         return temp_uuids
 
