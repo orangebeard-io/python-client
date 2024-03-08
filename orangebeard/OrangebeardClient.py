@@ -15,6 +15,7 @@ from orangebeard.entity.FinishStep import FinishStep
 from orangebeard.entity.FinishTest import FinishTest
 from orangebeard.entity.FinishTestRun import FinishTestRun
 from orangebeard.entity.Log import Log
+from orangebeard.entity.OrangebeardParameters import OrangebeardParameters
 from orangebeard.entity.Serializable import Serializable
 from orangebeard.entity.StartStep import StartStep
 from orangebeard.entity.StartSuite import StartSuite
@@ -47,7 +48,8 @@ class OrangebeardClient:
             self,
             endpoint: str = None,
             access_token: UUID = None,
-            project_name: str = None
+            project_name: str = None,
+            orangebeard_config: OrangebeardParameters = None
     ) -> None:
         """
             Initialize the OrangebeardClient.
@@ -59,7 +61,11 @@ class OrangebeardClient:
             """
 
         if endpoint is None or access_token is None or project_name is None:
-            config = AutoConfig.config
+            if orangebeard_config is not None:
+                config = AutoConfig.update_config_parameters_from_env(orangebeard_config)
+            else:
+                config = AutoConfig.config
+
             endpoint = config.endpoint
             access_token = config.token
             project_name = config.project

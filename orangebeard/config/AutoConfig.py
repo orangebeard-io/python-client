@@ -1,23 +1,14 @@
 import os
 import json
 from typing import List, Optional
+
+from orangebeard.entity.OrangebeardParameters import OrangebeardParameters
 from orangebeard.entity.Attribute import Attribute
 
 
 def get_attributes_from_string(string_attr: str) -> List[Attribute]:
     return [Attribute(*attribute.split(':')) if ':' in attribute else Attribute(None, attribute) for attribute in
             string_attr.split(';')]
-
-
-class OrangebeardParameters:
-    def __init__(self):
-        self.token = None
-        self.endpoint = None
-        self.testset = None
-        self.project = None
-        self.description = None
-        self.attributes = None
-        self.ref_url = None
 
 
 def update_config_parameters_from_env(current_config: OrangebeardParameters) -> OrangebeardParameters:
