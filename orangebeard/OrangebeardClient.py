@@ -7,7 +7,7 @@ import aiohttp
 
 from uuid import UUID
 
-from aiohttp import ContentTypeError
+from aiohttp import ContentTypeError, ClientError
 
 from orangebeard.config import AutoConfig
 from orangebeard.entity.Attachment import Attachment
@@ -70,12 +70,10 @@ class OrangebeardClient:
             access_token = config.token
             project_name = config.project
 
-        self.__MAX_ERRORS = 10
         self.__endpoint = endpoint
         self.__access_token = access_token
         self.__project_name = project_name
         self.__connection_with_orangebeard_is_valid: bool = True
-        self.__errors = 0
 
         self.__uuid_mapping = {}
         self.__call_events = {}
@@ -87,7 +85,8 @@ class OrangebeardClient:
             headers={
                 "Authorization": f"Bearer {str(self.__access_token)}",
                 "Content-Type": "application/json",
-            })
+            },
+            raise_for_status=True)
 
     def start_test_run(self, start_test_run: StartTestRun) -> UUID:
         """
@@ -261,21 +260,23 @@ class OrangebeardClient:
         asyncio.ensure_future(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
         return temp_uuid
 
-    async def __make_api_request(self, method: str, uri: str, data: Serializable = None):
-        if self.__connection_with_orangebeard_is_valid:
-            async with self.__client.request(method, uri,
-                                             data=data.to_json() if data is not None else None) as response:
-                if 200 <= response.status < 300:
-                    try:
-                        return await response.json()
-                    except ContentTypeError:
-                        return None
-                else:
-                    print(f'Error Sending: {data.to_json()} to {uri}')
-                    self.__errors += 1
-                    if self.__errors > self.__MAX_ERRORS:
-                        self.__connection_with_orangebeard_is_valid = False
-                    raise ConnectionError(f'Failed to communicate with Orangebeard: {await response.text()}')
+    async def __make_api_request(self, method: str, uri: str, data: Serializable = None, retry_count: int = 4):
+        for attempt in range(retry_count):
+            if self.__connection_with_orangebeard_is_valid:
+                try:
+                    async with (self.__client.request(method, uri, data=data.to_json() if data is not None else None)
+                                as response):
+                        try:
+                            return await response.json()
+                        except ContentTypeError:
+                            return None
+                except ClientError:
+                    await asyncio.sleep(2 ** (attempt + 1))
+            else:
+                break
+        else:
+            self.__connection_with_orangebeard_is_valid = False
+            raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
 
     async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID) -> None:
         response = await self.__make_api_request(
