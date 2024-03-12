@@ -18,8 +18,8 @@ def update_config_parameters_from_env(current_config: OrangebeardParameters) -> 
     current_config.project = os.environ.get('ORANGEBEARD_PROJECT', current_config.project)
     current_config.description = os.environ.get('ORANGEBEARD_DESCRIPTION', current_config.description)
     current_config.attributes = get_attributes_from_string(
-        os.environ.get('ORANGEBEARD_ENDPOINT', '')) if os.environ.get(
-        'ORANGEBEARD_ENDPOINT') else current_config.attributes
+        os.environ.get('ORANGEBEARD_ATTRIBUTES', '')) if os.environ.get(
+        'ORANGEBEARD_ATTRIBUTES') else current_config.attributes
     current_config.ref_url = os.environ.get('ORANGEBEARD_REF_URL', current_config.ref_url)
 
     return current_config
