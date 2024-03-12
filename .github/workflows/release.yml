@@ -7,13 +7,15 @@ on:
 
 jobs:
   build:
-    name: Build distribution 📦
+    name: Build distribution
     runs-on: ubuntu-latest
+    outputs:
+      releaseVersion: ${{ steps.exposeVersion.outputs.releaseVersion }}
 
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.x"
     - name: Install pypa/build
@@ -25,10 +27,18 @@ jobs:
     - name: Build a binary wheel and a source tarball
       run: python3 -m build
     - name: Store the distribution packages
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: python-package-distributions
         path: dist/
+    - name: Get version from pyproject.toml
+      uses: maybe-hello-world/pyproject-check-version@v4
+      id: versioncheck
+      with:
+        pyproject-path: "./pyproject.toml"
+    - name: save version to output
+      id: exposeVersion
+      run: echo "releaseVersion=${{ steps.versioncheck.outputs.local_version }}" >> $GITHUB_OUTPUT
 
   publish-to-pypi:
     name: >-
@@ -43,7 +53,7 @@ jobs:
       id-token: write
     steps:
       - name: Download all the dists
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
@@ -64,7 +74,7 @@ jobs:
 
     steps:
       - name: Download all the dists
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
@@ -79,7 +89,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
           gh release create
-          '${{ github.ref_name }}'
+          '${{ needs.get-version.outputs.releaseVersion }}'
           --repo '${{ github.repository }}'
           --notes ""
       - name: Upload artifact signatures to GitHub Release
@@ -90,5 +100,5 @@ jobs:
         # sigstore-produced signatures and certificates.
         run: >-
           gh release upload
-          '${{ github.ref_name }}' dist/**
+          '${{ needs.get-version.outputs.releaseVersion }}' dist/**
           --repo '${{ github.repository }}'
