@@ -25,6 +25,7 @@ def update_config_parameters_from_env(current_config: OrangebeardParameters) -> 
     return current_config
 
 
+# noinspection PyBroadException
 def get_config(path_to_resolve: str) -> Optional[OrangebeardParameters]:
     traversing = True
     while traversing:
@@ -36,7 +37,7 @@ def get_config(path_to_resolve: str) -> Optional[OrangebeardParameters]:
                     if not isinstance(config_data, dict):
                         config_data = None
                     config_from_file = OrangebeardParameters()
-                    config_from_file.__dict__ = config_data
+                    config_from_file.__dict__.update(config_data)
                     return update_config_parameters_from_env(config_from_file)
             except Exception:
                 return update_config_parameters_from_env(OrangebeardParameters())
