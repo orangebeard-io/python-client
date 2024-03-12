@@ -3,13 +3,18 @@ import mimetypes
 from uuid import UUID
 from pytz import reference
 
-
 from orangebeard.entity.Serializable import Serializable
 
 tz = reference.LocalTimezone()
 
 
-class AttachmentFile:
+class Attachment(Serializable):
+    def __init__(self, file, meta_data):
+        self.AttachmentFile: AttachmentFile = file
+        self.AttachmentMetaData: AttachmentMetaData = meta_data
+
+
+class AttachmentFile(Serializable):
     def __init__(self, name, content):
         self.name = name
         self.content: bytes = content
@@ -18,17 +23,17 @@ class AttachmentFile:
 
 class AttachmentMetaData(Serializable):
     def __init__(
-        self,
-        testRunUUID: UUID,
-        testUUID: UUID,
-        logUUID: UUID,
-        stepUUID: UUID = None,  # type: ignore
-        attachmentTime=None,
+            self,
+            testRunUUID: UUID,
+            testUUID: UUID,
+            logUUID: UUID,
+            stepUUID: UUID = None,  # type: ignore
+            attachmentTime=None,
     ):
-        self.testRunUUID = str(testRunUUID)
-        self.testUUID = str(testUUID)
-        self.stepUUID = str(stepUUID) if stepUUID else None
-        self.logUUID = str(logUUID)
+        self.testRunUUID = testRunUUID
+        self.testUUID = testUUID
+        self.stepUUID = stepUUID if stepUUID else None
+        self.logUUID = logUUID
         self.attachmentTime = (
             attachmentTime.strftime("%Y-%m-%dT%H:%M:%S%z")
             if attachmentTime

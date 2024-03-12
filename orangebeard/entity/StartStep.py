@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 from orangebeard.entity.Serializable import Serializable
 
@@ -7,14 +8,14 @@ class StartStep(Serializable):
         self,
         testRunUUID: UUID,
         testUUID: UUID,
-        parentStepUUID: UUID,
-        stepName,
-        startTime,
-        description,
+        stepName: str,
+        startTime: datetime,
+        parentStepUUID: UUID = None,
+        description: str = None,
     ):
-        self.testRunUUID = str(testRunUUID)
-        self.testUUID = str(testUUID)
-        self.parentStepUUID = str(parentStepUUID) if parentStepUUID else None
+        self.testRunUUID = testRunUUID
+        self.testUUID = testUUID
+        self.parentStepUUID = parentStepUUID if parentStepUUID else None
         self.stepName = stepName
         self.description = description
-        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S%z")
+        self.startTime = startTime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")
