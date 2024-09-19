@@ -74,19 +74,14 @@ class OrangebeardClient:
         self.__access_token = access_token
         self.__project_name = project_name
         self.__connection_with_orangebeard_is_valid: bool = True
+        self.__client = None
 
         self.__uuid_mapping = {}
         self.__call_events = {}
         self.__event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.__event_loop)
 
-        self.__client = aiohttp.ClientSession(
-            base_url=self.__endpoint,
-            headers={
-                "Authorization": f"Bearer {str(self.__access_token)}",
-                "Content-Type": "application/json",
-            },
-            raise_for_status=True)
+
 
     def start_test_run(self, start_test_run: StartTestRun) -> UUID:
         """
@@ -260,7 +255,19 @@ class OrangebeardClient:
         asyncio.ensure_future(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
         return temp_uuid
 
+    async def __ensure_client(self):
+        if self.__client is None or self.__client.closed:
+            self.__client = aiohttp.ClientSession(
+                base_url=self.__endpoint,
+                headers={
+                    "Authorization": f"Bearer {str(self.__access_token)}",
+                    "Content-Type": "application/json",
+                },
+                raise_for_status=True
+            )
+
     async def __make_api_request(self, method: str, uri: str, data: Serializable = None, retry_count: int = 4):
+        await self.__ensure_client()
         for attempt in range(retry_count):
             if self.__connection_with_orangebeard_is_valid:
                 try:
@@ -435,6 +442,7 @@ class OrangebeardClient:
             }
 
             uri = f'/listener/v3/{self.__project_name}/attachment'
+            await self.__ensure_client()
 
             async with self.__client.request('POST', uri, data=multipart_message, headers=headers) as response:
                 if 200 <= response.status < 300:
