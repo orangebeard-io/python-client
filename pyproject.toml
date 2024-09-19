@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-client"
-version = "2.0.5"
+version = "2.1.2"
 authors = [
     { name = "Tom Heintzberger", email = "tom@orangebeard.io" },
 ]
