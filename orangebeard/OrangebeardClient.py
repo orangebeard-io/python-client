@@ -70,6 +70,7 @@ class OrangebeardClient:
             access_token = config.token
             project_name = config.project
 
+        self.__external_run_lifecycle = False
         self.__endpoint = endpoint
         self.__access_token = access_token
         self.__project_name = project_name
@@ -81,14 +82,21 @@ class OrangebeardClient:
         self.__event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.__event_loop)
 
+        if orangebeard_config.testrun_uuid is not None:
+            print('external lifecycle!')
+            self.__external_run_lifecycle = True
+            self.__call_events[orangebeard_config.testrun_uuid] = asyncio.Event()
+            self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid
+            self.__call_events[orangebeard_config.testrun_uuid].set()
 
 
-    def start_test_run(self, start_test_run: StartTestRun) -> UUID:
+    def start_test_run(self, start_test_run: StartTestRun, direct=False) -> UUID:
         """
         Start a new test run.
 
         Args:
             start_test_run (StartTestRun): The StartTestRun object containing information about the test run.
+            direct: boolean indicating a standalone, direct cli call
 
         Returns:
             UUID: The UUID associated with the started test run.
@@ -98,7 +106,7 @@ class OrangebeardClient:
 
         self.__call_events[temp_uuid] = start_test_run_event
 
-        self.__event_loop.run_until_complete(self.__exec_start_test_run(start_test_run, temp_uuid))
+        self.__event_loop.run_until_complete(self.__exec_start_test_run(start_test_run, temp_uuid, direct))
         return temp_uuid
 
     def start_announced_test_run(self, test_run_uuid: UUID) -> None:
@@ -112,7 +120,7 @@ class OrangebeardClient:
         self.__call_events[test_run_uuid] = start_test_run_event
         self.__event_loop.run_until_complete(self.__exec_start_announced_test_run(test_run_uuid))
 
-    def finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun) -> None:
+    def finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun, direct=False) -> None:
         """
         Wait for all events to finish and then finish the test run.
 
@@ -120,9 +128,10 @@ class OrangebeardClient:
             test_run_uuid (UUID): The UUID of the test run to be finished.
             finish_test_run (FinishTestRun): The FinishTestRun object containing information about finishing the
             test run.
+            direct (Bool): indication that a standalone finish call is required. True for CLI
         """
         self.__event_loop.run_until_complete(
-            self.__exec_finish_test_run(test_run_uuid, finish_test_run))
+            self.__exec_finish_test_run(test_run_uuid, finish_test_run, direct))
 
     def start_suite(self, start_suite: StartSuite) -> list[UUID]:
         """
@@ -285,7 +294,7 @@ class OrangebeardClient:
             self.__connection_with_orangebeard_is_valid = False
             raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
 
-    async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID) -> None:
+    async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID, direct=False) -> None:
         response = await self.__make_api_request(
             'POST',
             f'/listener/v3/{self.__project_name}/test-run/start',
@@ -295,6 +304,9 @@ class OrangebeardClient:
         self.__uuid_mapping[temp_uuid] = actual_uuid
         self.__call_events[temp_uuid].set()
 
+        if direct is True:
+            await self.__client.close()
+
     async def __exec_start_announced_test_run(self, test_run_uuid: UUID) -> None:
         await self.__make_api_request(
             'PUT',
@@ -303,19 +315,27 @@ class OrangebeardClient:
         self.__uuid_mapping[test_run_uuid] = test_run_uuid
         self.__call_events[test_run_uuid].set()
 
-    async def __exec_finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun) -> None:
+    async def __exec_finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun, direct=False) -> None:
         print(f'Waiting for {len(self.__call_events.values()) + 1} Orangebeard events to finish...')
 
         for event in self.__call_events.values():
             await event.wait()
 
-        real_test_run_uuid = self.__uuid_mapping[test_run_uuid]
-        await self.__make_api_request(
-            'PUT',
-            f'/listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
-            finish_test_run
-        )
-        print('Done. Test run finished!')
+        if direct is True:
+            real_test_run_uuid = test_run_uuid
+        else:
+            real_test_run_uuid = self.__uuid_mapping[test_run_uuid]
+
+        if self.__external_run_lifecycle is False:
+            await self.__make_api_request(
+                'PUT',
+                f'/listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
+                finish_test_run
+            )
+            print('Done. Test run finished!')
+        else:
+            print('Ended run without sending test run finish call. Remember to finish using CLI!')
+
         await self.__client.close()
 
     async def __exec_start_suite(self, start_suite: StartSuite, suite_temp_ids: list[UUID],
@@ -453,3 +473,11 @@ class OrangebeardClient:
                 else:
                     self.__connection_with_orangebeard_is_valid = False
                     raise ConnectionError(f'Failed to communicate with Orangebeard: {await response.text()}')
+
+    @property
+    def call_events(self):
+        return self.__call_events
+
+    @property
+    def uuid_mapping(self):
+        return self.__uuid_mapping

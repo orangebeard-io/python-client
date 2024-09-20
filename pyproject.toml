@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-client"
-version = "2.2.0"
+version = "2.3.0"
 description = "A python3 client for Orangebeard"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -13,6 +13,9 @@ dependencies = [ "pytz", "aiohttp",]
 [[project.authors]]
 name = "Tom Heintzberger"
 email = "tom@orangebeard.io"
+
+[project.scripts]
+orangebeard-cli = "orangebeard.Cli:main"
 
 [project.urls]
 Homepage = "https://github.com/orangebeard-io/python-client"

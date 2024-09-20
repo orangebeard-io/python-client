@@ -21,6 +21,7 @@ def update_config_parameters_from_env(current_config: OrangebeardParameters) -> 
         os.environ.get('ORANGEBEARD_ATTRIBUTES', '')) if os.environ.get(
         'ORANGEBEARD_ATTRIBUTES') else current_config.attributes
     current_config.ref_url = os.environ.get('ORANGEBEARD_REF_URL', current_config.ref_url)
+    current_config.testrun_uuid = os.environ.get('ORANGEBEARD_TESTRUN_UUID', current_config.testrun_uuid)
 
     return current_config
 
