@@ -9,7 +9,8 @@ class OrangebeardParameters(Serializable):
                  project=None,
                  description=None,
                  attributes=None,
-                 ref_url=None
+                 ref_url=None,
+                 testrun_uuid=None
                  ):
         self.token = token
         self.endpoint = endpoint
@@ -18,3 +19,4 @@ class OrangebeardParameters(Serializable):
         self.description = description
         self.attributes = attributes
         self.ref_url = ref_url
+        self.testrun_uuid = testrun_uuid
