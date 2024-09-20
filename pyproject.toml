@@ -1,26 +1,22 @@
 [build-system]
-requires = ["setuptools>=67.0"]
+requires = [ "setuptools>=67.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-client"
-version = "2.2.0"
-authors = [
-    { name = "Tom Heintzberger", email = "tom@orangebeard.io" },
-]
+version = "2.3.0"
 description = "A python3 client for Orangebeard"
 readme = "README.md"
 requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
-    "Operating System :: OS Independent",
-]
-dependencies = ["pytz", "aiohttp"]
+classifiers = [ "Programming Language :: Python :: 3", "License :: OSI Approved :: GNU Affero General Public License v3", "Operating System :: OS Independent",]
+dependencies = [ "pytz", "aiohttp",]
+[[project.authors]]
+name = "Tom Heintzberger"
+email = "tom@orangebeard.io"
 
 [project.scripts]
 orangebeard-cli = "orangebeard.Cli:main"
 
 [project.urls]
-"Homepage" = "https://github.com/orangebeard-io/python-client"
+Homepage = "https://github.com/orangebeard-io/python-client"
 "Bug Tracker" = "https://github.com/orangebeard-io/python-client/issues"
