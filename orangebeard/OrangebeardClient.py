@@ -83,7 +83,6 @@ class OrangebeardClient:
         asyncio.set_event_loop(self.__event_loop)
 
         if orangebeard_config.testrun_uuid is not None:
-            print('external lifecycle!')
             self.__external_run_lifecycle = True
             self.__call_events[orangebeard_config.testrun_uuid] = asyncio.Event()
             self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid
@@ -334,7 +333,7 @@ class OrangebeardClient:
             )
             print('Done. Test run finished!')
         else:
-            print('Ended run without sending test run finish call. Remember to finish using CLI!')
+            print('Done. Remember to finish run using CLI!')
 
         await self.__client.close()
 
