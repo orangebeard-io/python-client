@@ -83,7 +83,6 @@ class OrangebeardClient:
         asyncio.set_event_loop(self.__event_loop)
 
         if orangebeard_config.testrun_uuid is not None:
-            print('external lifecycle!')
             self.__external_run_lifecycle = True
             self.__call_events[orangebeard_config.testrun_uuid] = asyncio.Event()
             self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid
@@ -334,7 +333,7 @@ class OrangebeardClient:
             )
             print('Done. Test run finished!')
         else:
-            print('Ended run without sending test run finish call. Remember to finish using CLI!')
+            print('Done. Remember to finish run using CLI!')
 
         await self.__client.close()
 
@@ -462,17 +461,31 @@ class OrangebeardClient:
             }
 
             uri = f'/listener/v3/{self.__project_name}/attachment'
+            retry_count = 4
             await self.__ensure_client()
-
-            async with self.__client.request('POST', uri, data=multipart_message, headers=headers) as response:
-                if 200 <= response.status < 300:
-                    response_text = await response.text()
-                    actual_uuid = response_text if response_text else None
-                    self.__uuid_mapping[temp_uuid] = actual_uuid
-                    self.__call_events[temp_uuid].set()
+            for attempt in range(retry_count):
+                if self.__connection_with_orangebeard_is_valid:
+                    try:
+                        async with self.__client.request('POST', uri, data=multipart_message,
+                                                         headers=headers) as response:
+                            try:
+                                if 200 <= response.status < 300:
+                                    response_text = await response.text()
+                                    actual_uuid = response_text if response_text else None
+                                    self.__uuid_mapping[temp_uuid] = actual_uuid
+                                    self.__call_events[temp_uuid].set()
+                                    return response_text
+                            except ContentTypeError:
+                                return None
+                    except ClientError:
+                        await asyncio.sleep(2 ** (attempt + 1))
                 else:
-                    self.__connection_with_orangebeard_is_valid = False
-                    raise ConnectionError(f'Failed to communicate with Orangebeard: {await response.text()}')
+                    break
+
+            else:
+                self.__connection_with_orangebeard_is_valid = False
+                raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
+
 
     @property
     def call_events(self):

@@ -32,7 +32,7 @@ def main():
     config.endpoint = args.endpoint
     config.token = args.accessToken
     config.project = args.project
-    config.test_set = args.testset
+    config.testset = args.testset
     config.description = args.description
 
     client = OrangebeardClient(orangebeard_config=config)
