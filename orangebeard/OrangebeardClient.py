@@ -461,17 +461,31 @@ class OrangebeardClient:
             }
 
             uri = f'/listener/v3/{self.__project_name}/attachment'
+            retry_count = 4
             await self.__ensure_client()
-
-            async with self.__client.request('POST', uri, data=multipart_message, headers=headers) as response:
-                if 200 <= response.status < 300:
-                    response_text = await response.text()
-                    actual_uuid = response_text if response_text else None
-                    self.__uuid_mapping[temp_uuid] = actual_uuid
-                    self.__call_events[temp_uuid].set()
+            for attempt in range(retry_count):
+                if self.__connection_with_orangebeard_is_valid:
+                    try:
+                        async with self.__client.request('POST', uri, data=multipart_message,
+                                                         headers=headers) as response:
+                            try:
+                                if 200 <= response.status < 300:
+                                    response_text = await response.text()
+                                    actual_uuid = response_text if response_text else None
+                                    self.__uuid_mapping[temp_uuid] = actual_uuid
+                                    self.__call_events[temp_uuid].set()
+                                    return response_text
+                            except ContentTypeError:
+                                return None
+                    except ClientError:
+                        await asyncio.sleep(2 ** (attempt + 1))
                 else:
-                    self.__connection_with_orangebeard_is_valid = False
-                    raise ConnectionError(f'Failed to communicate with Orangebeard: {await response.text()}')
+                    break
+
+            else:
+                self.__connection_with_orangebeard_is_valid = False
+                raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
+
 
     @property
     def call_events(self):
