@@ -281,6 +281,9 @@ class OrangebeardClient:
                 try:
                     async with (self.__client.request(method, uri, data=data.to_json() if data is not None else None)
                                 as response):
+                        if response.status == 400:
+                            print(f"Bad request (400): {uri}")
+                            return None
                         try:
                             return await response.json()
                         except ContentTypeError:
@@ -291,7 +294,7 @@ class OrangebeardClient:
                 break
         else:
             self.__connection_with_orangebeard_is_valid = False
-            raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
+            print(f'Failed to communicate with Orangebeard after {retry_count} attempts')
 
     async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID, direct=False) -> None:
         response = await self.__make_api_request(
