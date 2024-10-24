@@ -88,7 +88,6 @@ class OrangebeardClient:
             self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid
             self.__call_events[orangebeard_config.testrun_uuid].set()
 
-
     def start_test_run(self, start_test_run: StartTestRun, direct=False) -> UUID:
         """
         Start a new test run.
@@ -326,7 +325,7 @@ class OrangebeardClient:
         if direct is True:
             real_test_run_uuid = test_run_uuid
         else:
-            real_test_run_uuid = self.__uuid_mapping[test_run_uuid]
+            real_test_run_uuid = await self.__get_real_uuid(test_run_uuid)
 
         if self.__external_run_lifecycle is False:
             await self.__make_api_request(
@@ -344,9 +343,9 @@ class OrangebeardClient:
                                  parent_event: Event) -> None:
         await parent_event.wait()
 
-        start_suite.testRunUUID = self.__uuid_mapping[start_suite.testRunUUID]
+        start_suite.testRunUUID = await self.__get_real_uuid(start_suite.testRunUUID)
         if start_suite.parentSuiteUUID is not None:
-            start_suite.parentSuiteUUID = self.__uuid_mapping[start_suite.parentSuiteUUID]
+            start_suite.parentSuiteUUID = await self.__get_real_uuid(start_suite.parentSuiteUUID)
 
         suites: list[Suite] = await self.__make_api_request(
             'POST',
@@ -361,8 +360,8 @@ class OrangebeardClient:
 
     async def __exec_start_test(self, start_test: StartTest, temp_uuid: UUID, parent_event: Event) -> None:
         await parent_event.wait()
-        start_test.testRunUUID = self.__uuid_mapping[start_test.testRunUUID]
-        start_test.suiteUUID = self.__uuid_mapping[start_test.suiteUUID]
+        start_test.testRunUUID = await self.__get_real_uuid(start_test.testRunUUID)
+        start_test.suiteUUID = await self.__get_real_uuid(start_test.suiteUUID)
 
         response = await self.__make_api_request(
             'POST',
@@ -376,8 +375,8 @@ class OrangebeardClient:
     async def __exec_finish_test(self, test_uuid: UUID, finish_test: FinishTest, temp_uuid: UUID,
                                  parent_event: Event) -> None:
         await parent_event.wait()
-        test_uuid = self.__uuid_mapping[test_uuid]
-        finish_test.testRunUUID = self.__uuid_mapping[finish_test.testRunUUID]
+        test_uuid = await self.__get_real_uuid(test_uuid)
+        finish_test.testRunUUID = await self.__get_real_uuid(finish_test.testRunUUID)
 
         await self.__make_api_request(
             'PUT',
@@ -388,10 +387,10 @@ class OrangebeardClient:
 
     async def __exec_start_step(self, start_step: StartStep, temp_uuid: UUID, parent_event: Event) -> None:
         await parent_event.wait()
-        start_step.testRunUUID = self.__uuid_mapping[start_step.testRunUUID]
-        start_step.testUUID = self.__uuid_mapping[start_step.testUUID]
+        start_step.testRunUUID = await self.__get_real_uuid(start_step.testRunUUID)
+        start_step.testUUID = await self.__get_real_uuid(start_step.testUUID)
         if start_step.parentStepUUID is not None:
-            start_step.parentStepUUID = self.__uuid_mapping[start_step.parentStepUUID]
+            start_step.parentStepUUID = await self.__get_real_uuid(start_step.parentStepUUID)
 
         response = await self.__make_api_request(
             'POST',
@@ -406,8 +405,8 @@ class OrangebeardClient:
     async def __exec_finish_step(self, step_uuid: UUID, finish_step: FinishStep, temp_uuid: UUID,
                                  parent_event: Event) -> None:
         await parent_event.wait()
-        step_uuid = self.__uuid_mapping[step_uuid]
-        finish_step.testRunUUID = self.__uuid_mapping[finish_step.testRunUUID]
+        step_uuid = await self.__get_real_uuid(step_uuid)
+        finish_step.testRunUUID = await self.__get_real_uuid(finish_step.testRunUUID)
 
         await self.__make_api_request(
             'PUT',
@@ -420,9 +419,9 @@ class OrangebeardClient:
         await parent_event.wait()
         if log.message.strip() == '':
             log.message = '_empty_'
-        log.testRunUUID = self.__uuid_mapping[log.testRunUUID]
-        log.testUUID = self.__uuid_mapping[log.testUUID]
-        log.stepUUID = self.__uuid_mapping[log.stepUUID] if log.stepUUID is not None else None
+        log.testRunUUID = await self.__get_real_uuid(log.testRunUUID)
+        log.testUUID = await self.__get_real_uuid(log.testUUID)
+        log.stepUUID = await self.__get_real_uuid(log.stepUUID) if log.stepUUID is not None else None
 
         response = await self.__make_api_request(
             'POST',
@@ -436,11 +435,12 @@ class OrangebeardClient:
 
     async def __exec_send_attachment(self, attachment: Attachment, temp_uuid: UUID, parent_event: Event) -> None:
         await parent_event.wait()
-        attachment.AttachmentMetaData.testRunUUID = self.__uuid_mapping[attachment.AttachmentMetaData.testRunUUID]
-        attachment.AttachmentMetaData.testUUID = self.__uuid_mapping[attachment.AttachmentMetaData.testUUID]
+        attachment.AttachmentMetaData.testRunUUID = await self.__get_real_uuid(
+            attachment.AttachmentMetaData.testRunUUID)
+        attachment.AttachmentMetaData.testUUID = await self.__get_real_uuid(attachment.AttachmentMetaData.testUUID)
         if attachment.AttachmentMetaData.stepUUID is not None:
-            attachment.AttachmentMetaData.stepUUID = self.__uuid_mapping[attachment.AttachmentMetaData.stepUUID]
-        attachment.AttachmentMetaData.logUUID = self.__uuid_mapping[attachment.AttachmentMetaData.logUUID]
+            attachment.AttachmentMetaData.stepUUID = await self.__get_real_uuid(attachment.AttachmentMetaData.stepUUID)
+        attachment.AttachmentMetaData.logUUID = await self.__get_real_uuid(attachment.AttachmentMetaData.logUUID)
 
         if self.__connection_with_orangebeard_is_valid:
             boundary = f"boundary_{uuid.uuid4().hex}"
@@ -489,6 +489,12 @@ class OrangebeardClient:
                 self.__connection_with_orangebeard_is_valid = False
                 raise ConnectionError(f'Failed to communicate with Orangebeard after {retry_count} attempts')
 
+    async def __get_real_uuid(self, temp_uuid: UUID) -> UUID | None:
+        for _ in range(3):  # Retry up to 3 times, avoid None value on sporadic race condition between event set and value write
+            if temp_uuid in self.__uuid_mapping and self.__uuid_mapping[temp_uuid] is not None:
+                return self.__uuid_mapping[temp_uuid]
+            await asyncio.sleep(0.05)  #50ms
+        return None
 
     @property
     def call_events(self):
