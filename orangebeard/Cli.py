@@ -22,8 +22,9 @@ def main():
     parser.add_argument('-t', '--accessToken', help="Your Orangebeard Access Token", default=config.token)
     parser.add_argument('-p', '--project', help="Orangebeard Project Name", default=config.project)
     parser.add_argument('-x', '--cmd', required=True, choices=['start', 'finish'], help="Command to execute")
-    parser.add_argument('-s', '--testset', help="The testset name, required for start command", default=config.testset)
+    parser.add_argument('-s', '--testset', help="The testset name", default=config.testset)
     parser.add_argument('-d', '--description', help="The test run description", default=config.description)
+    parser.add_argument('-a', '--attributes', help="Test run attributes", default=None)
     parser.add_argument('-id', '--testRunUuid', help="The UUID of the test run to finish, required for finish",
                         default=None)
 
@@ -35,10 +36,13 @@ def main():
     config.testset = args.testset
     config.description = args.description
 
+    if args.attributes is not None:
+        config.attributes = config.attributes + AutoConfig.get_attributes_from_string(args.attributes)
+
     client = OrangebeardClient(orangebeard_config=config)
 
     if args.cmd == "start":
-        temp_uuid = client.start_test_run(StartTestRun(config.testset, datetime.now(tz), config.description), True)
+        temp_uuid = client.start_test_run(StartTestRun(config.testset, datetime.now(tz), config.description, config.attributes), True)
         asyncio.gather(client.call_events[temp_uuid].wait())
         print(client.uuid_mapping[temp_uuid])
         sys.exit(0)
