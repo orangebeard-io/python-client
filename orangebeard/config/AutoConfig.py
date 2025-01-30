@@ -7,8 +7,7 @@ from orangebeard.entity.Attribute import Attribute
 
 
 def get_attributes_from_string(string_attr: str) -> List[Attribute]:
-    return [Attribute(*attribute.split(':')) if ':' in attribute else Attribute(None, attribute) for attribute in
-            string_attr.split(';')]
+    return [Attribute(*attribute.partition(':')[::2]) for attribute in string_attr.split(';')]
 
 
 def update_config_parameters_from_env(current_config: OrangebeardParameters) -> OrangebeardParameters:
