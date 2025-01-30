@@ -46,9 +46,11 @@ options:
   -x {start,finish}, --cmd {start,finish}
                         Command to execute
   -s TESTSET, --testset TESTSET
-                        The testset name, required for start command
+                        The testset name
   -d DESCRIPTION, --description DESCRIPTION
                         The test run description (optional)
+  -a ATTRIBUTES, --attributes ATTRIBUTES
+                        Test run attributes (optional)
   -id TESTRUNUUID, --testRunUuid TESTRUNUUID
                         The UUID of the test run to finish, required for finish
 ```
@@ -56,7 +58,7 @@ options:
 Example (Robotframework using pabot):
 ```shell
 #!/bin/bash
-testrunUuid=$(orangebeard-cli -x start)
-pabot --listener orangebeard_robotframework.listener  --variable orangebeard_testrun:"$testrunUuid" --console verbose .
+testrunUuid=$(orangebeard-cli -x start -a "myTag;commitUrl:https://github.com/prj")
+pabot --listener orangebeard_robotframework.listener  --variable orangebeard_testrun:"$testrunUuid"  .
 orangebeard-cli -x finish -id $testrunUuid
 ```
