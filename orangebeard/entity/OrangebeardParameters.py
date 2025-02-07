@@ -9,7 +9,7 @@ class OrangebeardParameters(Serializable):
                  project=None,
                  description=None,
                  attributes=None,
-                 ref_url=None,
+                 reference_url=None,
                  testrun_uuid=None
                  ):
         self.token = token
@@ -17,6 +17,6 @@ class OrangebeardParameters(Serializable):
         self.testset = testset
         self.project = project
         self.description = description
-        self.attributes = attributes
-        self.ref_url = ref_url
+        self.attributes = attributes or []
+        self.referenceUrl = reference_url
         self.testrun_uuid = testrun_uuid

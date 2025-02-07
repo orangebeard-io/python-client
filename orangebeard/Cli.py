@@ -37,7 +37,7 @@ def main():
     config.description = args.description
 
     if args.attributes is not None:
-        config.attributes = config.attributes + AutoConfig.get_attributes_from_string(args.attributes)
+        config.attributes = config.attributes.extend(AutoConfig.get_attributes_from_string(args.attributes))
 
     client = OrangebeardClient(orangebeard_config=config)
 

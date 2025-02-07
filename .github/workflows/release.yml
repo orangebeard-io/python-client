@@ -64,8 +64,7 @@ jobs:
     name: >-
       Sign the Python 🐍 distribution 📦 with Sigstore
       and upload them to GitHub Release
-    needs:
-      - publish-to-pypi
+    needs: [build, publish-to-pypi]
     runs-on: ubuntu-latest
 
     permissions:
@@ -82,8 +81,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
-          gh release create
-          '${{ needs.build.outputs.releaseVersion }}'
+          gh release create ${{ needs.build.outputs.releaseVersion }}
           --repo '${{ github.repository }}'
           --notes ""
       - name: Upload artifact signatures to GitHub Release

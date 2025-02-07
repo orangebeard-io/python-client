@@ -59,6 +59,10 @@ class OrangebeardClient:
                 access_token (UUID): The access token for authentication.
                 project_name (str): The name of the Orangebeard project.
             """
+        if orangebeard_config is not None:
+            endpoint = orangebeard_config.endpoint if endpoint is None else endpoint
+            access_token = orangebeard_config.token if access_token is None else access_token
+            project_name = orangebeard_config.project if project_name is None else project_name
 
         if endpoint is None or access_token is None or project_name is None:
             if orangebeard_config is not None:
@@ -82,7 +86,7 @@ class OrangebeardClient:
         self.__event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.__event_loop)
 
-        if orangebeard_config.testrun_uuid is not None:
+        if orangebeard_config is not None and orangebeard_config.testrun_uuid is not None:
             self.__external_run_lifecycle = True
             self.__call_events[orangebeard_config.testrun_uuid] = asyncio.Event()
             self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid

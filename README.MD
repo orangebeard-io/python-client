@@ -7,8 +7,6 @@
 
 <h4 align="center">Orangebeard Python client for Python based Orangebeard Listeners.</h4>
 
-
-
 <div align="center">
   <h4>
     <a href="https://orangebeard.io">Orangebeard</a> |
