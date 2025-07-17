@@ -268,6 +268,9 @@ class OrangebeardClient:
 
     async def __ensure_client(self):
         if self.__client is None or self.__client.closed:
+            if not self.__endpoint.endswith('/'):
+                self.__endpoint = self.__endpoint.rstrip('/') + '/'
+
             self.__client = aiohttp.ClientSession(
                 base_url=self.__endpoint,
                 headers={
@@ -302,7 +305,7 @@ class OrangebeardClient:
     async def __exec_start_test_run(self, start_test_run: StartTestRun, temp_uuid: UUID, direct=False) -> None:
         response = await self.__make_api_request(
             'POST',
-            f'/listener/v3/{self.__project_name}/test-run/start',
+            f'listener/v3/{self.__project_name}/test-run/start',
             start_test_run
         )
         actual_uuid = response if response else None
@@ -315,7 +318,7 @@ class OrangebeardClient:
     async def __exec_start_announced_test_run(self, test_run_uuid: UUID) -> None:
         await self.__make_api_request(
             'PUT',
-            f'/listener/v3/{self.__project_name}/test-run/start/{test_run_uuid}'
+            f'listener/v3/{self.__project_name}/test-run/start/{test_run_uuid}'
         )
         self.__uuid_mapping[test_run_uuid] = test_run_uuid
         self.__call_events[test_run_uuid].set()
@@ -334,7 +337,7 @@ class OrangebeardClient:
         if self.__external_run_lifecycle is False:
             await self.__make_api_request(
                 'PUT',
-                f'/listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
+                f'listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
                 finish_test_run
             )
             print('Done. Test run finished!')
@@ -353,7 +356,7 @@ class OrangebeardClient:
 
         suites: list[Suite] = await self.__make_api_request(
             'POST',
-            f'/listener/v3/{self.__project_name}/suite/start',
+            f'listener/v3/{self.__project_name}/suite/start',
             start_suite
         )
 
@@ -369,7 +372,7 @@ class OrangebeardClient:
 
         response = await self.__make_api_request(
             'POST',
-            f'/listener/v3/{self.__project_name}/test/start',
+            f'listener/v3/{self.__project_name}/test/start',
             start_test
         )
         actual_uuid = response if response else None
@@ -384,7 +387,7 @@ class OrangebeardClient:
 
         await self.__make_api_request(
             'PUT',
-            f'/listener/v3/{self.__project_name}/test/finish/{test_uuid}',
+            f'listener/v3/{self.__project_name}/test/finish/{test_uuid}',
             finish_test
         )
         self.__call_events[temp_uuid].set()
@@ -398,7 +401,7 @@ class OrangebeardClient:
 
         response = await self.__make_api_request(
             'POST',
-            f'/listener/v3/{self.__project_name}/step/start',
+            f'listener/v3/{self.__project_name}/step/start',
             start_step
         )
 
@@ -414,7 +417,7 @@ class OrangebeardClient:
 
         await self.__make_api_request(
             'PUT',
-            f'/listener/v3/{self.__project_name}/step/finish/{step_uuid}',
+            f'listener/v3/{self.__project_name}/step/finish/{step_uuid}',
             finish_step
         )
         self.__call_events[temp_uuid].set()
@@ -429,7 +432,7 @@ class OrangebeardClient:
 
         response = await self.__make_api_request(
             'POST',
-            f'/listener/v3/{self.__project_name}/log',
+            f'listener/v3/{self.__project_name}/log',
             log
         )
 
@@ -467,7 +470,7 @@ class OrangebeardClient:
                 'Content-Type': f'multipart/form-data; boundary={boundary}'
             }
 
-            uri = f'/listener/v3/{self.__project_name}/attachment'
+            uri = f'listener/v3/{self.__project_name}/attachment'
             retry_count = 4
             await self.__ensure_client()
             for attempt in range(retry_count):
