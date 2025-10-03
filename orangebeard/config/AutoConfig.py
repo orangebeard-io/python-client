@@ -32,9 +32,10 @@ def update_config_parameters_from_env(current_config: OrangebeardParameters) -> 
     if env_attributes:
         current_config.attributes.extend(env_attributes)
 
-    current_config.referenceUrl = os.environ.get('ORANGEBEARD_REF_URL', current_config.referenceUrl)
+    current_config.referenceUrl = os.environ.get('ORANGEBEARD_REFERENCE_URL', current_config.referenceUrl)
     if current_config.referenceUrl is not None:
         current_config.attributes.append(Attribute('reference_url', current_config.referenceUrl))
+        current_config.referenceUrl = None #moved to attribute
 
     current_config.testrun_uuid = os.environ.get('ORANGEBEARD_TESTRUN_UUID', current_config.testrun_uuid)
 
@@ -42,28 +43,29 @@ def update_config_parameters_from_env(current_config: OrangebeardParameters) -> 
 
 
 # noinspection PyBroadException
-def get_config(path_to_resolve: str) -> Optional[OrangebeardParameters]:
-    traversing = True
-    configuration = OrangebeardParameters()
-    while traversing:
-        config_file_path = os.path.join(path_to_resolve, 'orangebeard.json')
+def get_config(path_to_resolve: str) -> OrangebeardParameters:
+    config_from_file = OrangebeardParameters()
+
+    current_path = path_to_resolve
+    while True:
+        config_file_path = os.path.join(current_path, 'orangebeard.json')
         if os.path.exists(config_file_path):
             try:
                 with open(config_file_path, 'r', encoding='utf-8') as file:
                     config_data = json.load(file)
-                    if not isinstance(config_data, dict):
-                        config_data = None
-                    configuration.__dict__.update(config_data)
-                    break
-            except Exception:
-                pass
+                    if isinstance(config_data, dict):
+                        config_from_file.__dict__.update(config_data)
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Warning: Could not read or parse {config_file_path}. Error: {e}")
+            break
 
-        prev_path = path_to_resolve
-        path_to_resolve = os.path.dirname(path_to_resolve)
+        prev_path = current_path
+        current_path = os.path.dirname(current_path)
 
-        traversing = path_to_resolve != prev_path
+        if current_path == prev_path:
+            break
 
-    return update_config_parameters_from_env(configuration)
+    return update_config_parameters_from_env(config_from_file)
 
 
 config = get_config(os.getcwd())
