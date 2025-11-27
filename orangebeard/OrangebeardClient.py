@@ -340,7 +340,7 @@ class OrangebeardClient:
                 f'listener/v3/{self.__project_name}/test-run/finish/{real_test_run_uuid}',
                 finish_test_run
             )
-            print('Done. Test run finished!')
+            print(f'Done. Orangebeard Report: {self.__endpoint}p/{self.__project_name}/test-results')
         else:
             print('Done. Remember to finish run using CLI!')
 

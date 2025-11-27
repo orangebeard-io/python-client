@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-client"
-version = "2.7.2"
+version = "2.7.3"
 description = "A python3 client for Orangebeard"
 readme = "README.md"
 requires-python = ">=3.7"
 license = "AGPL-3.0-or-later"
 classifiers = [ "Programming Language :: Python :: 3", "Operating System :: OS Independent",]
-dependencies = [ "pytz", "aiohttp",]
+dependencies = [ "pytz", "aiohttp>=3.13.0",]
 [[project.authors]]
 name = "Tom Heintzberger"
 email = "tom@orangebeard.io"
