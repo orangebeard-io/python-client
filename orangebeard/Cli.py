@@ -43,7 +43,6 @@ def main():
 
     if args.cmd == "start":
         temp_uuid = client.start_test_run(StartTestRun(config.testset, datetime.now(tz), config.description, config.attributes), True)
-        asyncio.gather(client.call_events[temp_uuid].wait())
         print(client.uuid_mapping[temp_uuid])
         sys.exit(0)
 
