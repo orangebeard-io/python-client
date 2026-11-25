@@ -1,19 +1,29 @@
 [build-system]
-requires = [ "setuptools>=67.0",]
+requires = [ "setuptools>=77.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "orangebeard-client"
-version = "2.7.3"
+version = "2.8.0"
 description = "A python3 client for Orangebeard"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = "AGPL-3.0-or-later"
-classifiers = [ "Programming Language :: Python :: 3", "Operating System :: OS Independent",]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
 dependencies = [ "pytz", "aiohttp>=3.13.0",]
 [[project.authors]]
 name = "Tom Heintzberger"
 email = "tom@orangebeard.io"
+
+[project.optional-dependencies]
+test = [ "pytest>=8.0",]
 
 [project.scripts]
 orangebeard-cli = "orangebeard.Cli:main"
@@ -21,3 +31,6 @@ orangebeard-cli = "orangebeard.Cli:main"
 [project.urls]
 Homepage = "https://github.com/orangebeard-io/python-client"
 "Bug Tracker" = "https://github.com/orangebeard-io/python-client/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,5 +1,9 @@
 import asyncio
+import atexit
+import json
+import threading
 import uuid
+import weakref
 from asyncio.locks import Event
 from types import MappingProxyType
 
@@ -23,25 +27,45 @@ from orangebeard.entity.StartTest import StartTest
 from orangebeard.entity.StartTestRun import StartTestRun
 from orangebeard.entity.Suite import Suite
 
+_LIVE_CLIENTS = weakref.WeakSet()
+
+
+@atexit.register
+def _flush_live_clients_at_exit():
+    """Safety net: send batched logs that were never flushed because the run was not finished properly."""
+    for client in list(_LIVE_CLIENTS):
+        try:
+            client.flush_logs(timeout=10)
+        except Exception:  # pragma: no cover - never fail interpreter shutdown
+            pass
+
+
+class _JsonList(Serializable):
+    """A list of Serializables, serialized as a JSON array."""
+
+    def __init__(self, items):
+        self.items = items
+
+    def to_json(self):
+        return json.dumps([json.loads(item.to_json()) for item in self.items])
+
 
 class OrangebeardClient:
     """
         OrangebeardClient class for interacting with the Orangebeard API.
 
+        All API calls are executed by a private asyncio event loop that runs on a background (daemon) thread.
+        Public methods return immediately (the returned UUIDs are client side placeholders that are resolved to
+        the real UUIDs just in time, respecting parent/child ordering). Call finish_test_run (or flush_logs) to wait
+        until everything has been sent.
+
         Args:
             endpoint (str): The Orangebeard API endpoint.
             access_token (UUID): The access token for authentication.
             project_name (str): The name of the Orangebeard project.
-
-        Attributes:
-            __endpoint (str): The Orangebeard API endpoint.
-            __access_token (UUID): The access token for authentication.
-            __project_name (str): The name of the Orangebeard project.
-            __connection_with_orangebeard_is_valid (bool): Flag indicating whether the connection with
-            Orangebeard is valid.
-            __uuid_mapping (dict): Mapping of temporary UUIDs to actual UUIDs.
-            __call_events (dict): Mapping of UUIDs to asyncio.Event objects.
-            __client (aiohttp.ClientSession): A client session for making API requests.
+            orangebeard_config (OrangebeardParameters): Alternative way to provide the above (and more).
+            log_batch_size (int): Number of logs sent by log_batch() in one request.
+            log_batch_interval (float): Maximum time in seconds a log added with log_batch() waits before sending.
         """
 
     def __init__(
@@ -49,16 +73,10 @@ class OrangebeardClient:
             endpoint: str = None,
             access_token: UUID = None,
             project_name: str = None,
-            orangebeard_config: OrangebeardParameters = None
+            orangebeard_config: OrangebeardParameters = None,
+            log_batch_size: int = 50,
+            log_batch_interval: float = 1.0
     ) -> None:
-        """
-            Initialize the OrangebeardClient.
-
-            Args:
-                endpoint (str): The Orangebeard API endpoint.
-                access_token (UUID): The access token for authentication.
-                project_name (str): The name of the Orangebeard project.
-            """
         if orangebeard_config is not None:
             endpoint = orangebeard_config.endpoint if endpoint is None else endpoint
             access_token = orangebeard_config.token if access_token is None else access_token
@@ -83,8 +101,18 @@ class OrangebeardClient:
 
         self.__uuid_mapping = {}
         self.__call_events = {}
+
+        self.__log_batch_size = log_batch_size
+        self.__log_batch_interval = log_batch_interval
+        self.__log_buffer = []
+        self.__log_flush_task = None
+
+        # The client owns a private event loop on a daemon thread, so it never touches (or conflicts with) an
+        # event loop of the calling thread, and API calls do not block the caller.
         self.__event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.__event_loop)
+        self.__loop_thread = threading.Thread(target=self.__run_loop, name='orangebeard-client', daemon=True)
+        self.__loop_thread.start()
+        _LIVE_CLIENTS.add(self)
 
         if orangebeard_config is not None and orangebeard_config.testrun_uuid is not None:
             self.__external_run_lifecycle = True
@@ -92,13 +120,59 @@ class OrangebeardClient:
             self.__uuid_mapping[orangebeard_config.testrun_uuid] = orangebeard_config.testrun_uuid
             self.__call_events[orangebeard_config.testrun_uuid].set()
 
+    # ------------------------------------------------------------------ loop plumbing
+
+    def __run_loop(self) -> None:
+        asyncio.set_event_loop(self.__event_loop)
+        self.__event_loop.run_forever()
+
+    def __submit(self, coroutine, event: Event = None):
+        """Schedule a coroutine on the client loop. The event (if any) is always released, even when it fails."""
+
+        async def guarded():
+            try:
+                return await coroutine
+            except Exception as error:  # a failing call must never hang dependants or finish_test_run
+                print(f'Orangebeard call failed: {error}')
+            finally:
+                if event is not None and not event.is_set():
+                    event.set()
+
+        return asyncio.run_coroutine_threadsafe(guarded(), self.__event_loop)
+
+    def __run_blocking(self, coroutine, event: Event = None, timeout: float = None):
+        return self.__submit(coroutine, event).result(timeout)
+
+    def close(self) -> None:
+        """Stop the background loop. Optional: the loop thread is a daemon and ends with the process."""
+        if self.__event_loop.is_closed() or not self.__loop_thread.is_alive():
+            return
+        try:
+            self.flush_logs(timeout=10)
+        finally:
+            async def shutdown():
+                if self.__log_flush_task is not None and not self.__log_flush_task.done():
+                    self.__log_flush_task.cancel()
+                if self.__client is not None and not self.__client.closed:
+                    await self.__client.close()
+
+            try:
+                asyncio.run_coroutine_threadsafe(shutdown(), self.__event_loop).result(10)
+            except Exception:
+                pass
+            self.__event_loop.call_soon_threadsafe(self.__event_loop.stop)
+            self.__loop_thread.join(5)
+            _LIVE_CLIENTS.discard(self)
+
+    # ------------------------------------------------------------------ public API
+
     def start_test_run(self, start_test_run: StartTestRun, direct=False) -> UUID:
         """
         Start a new test run.
 
         Args:
             start_test_run (StartTestRun): The StartTestRun object containing information about the test run.
-            direct: boolean indicating a standalone, direct cli call
+            direct: boolean indicating a standalone, direct cli call (blocks until the run is started)
 
         Returns:
             UUID: The UUID associated with the started test run.
@@ -108,7 +182,11 @@ class OrangebeardClient:
 
         self.__call_events[temp_uuid] = start_test_run_event
 
-        self.__event_loop.run_until_complete(self.__exec_start_test_run(start_test_run, temp_uuid, direct))
+        coroutine = self.__exec_start_test_run(start_test_run, temp_uuid, direct)
+        if direct:
+            self.__run_blocking(coroutine, start_test_run_event)
+        else:
+            self.__submit(coroutine, start_test_run_event)
         return temp_uuid
 
     def start_announced_test_run(self, test_run_uuid: UUID) -> None:
@@ -120,7 +198,7 @@ class OrangebeardClient:
         """
         start_test_run_event = asyncio.Event()
         self.__call_events[test_run_uuid] = start_test_run_event
-        self.__event_loop.run_until_complete(self.__exec_start_announced_test_run(test_run_uuid))
+        self.__run_blocking(self.__exec_start_announced_test_run(test_run_uuid), start_test_run_event)
 
     def finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun, direct=False) -> None:
         """
@@ -132,8 +210,7 @@ class OrangebeardClient:
             test run.
             direct (Bool): indication that a standalone finish call is required. True for CLI
         """
-        self.__event_loop.run_until_complete(
-            self.__exec_finish_test_run(test_run_uuid, finish_test_run, direct))
+        self.__run_blocking(self.__exec_finish_test_run(test_run_uuid, finish_test_run, direct))
 
     def start_suite(self, start_suite: StartSuite) -> list[UUID]:
         """
@@ -154,7 +231,7 @@ class OrangebeardClient:
             else start_suite.parentSuiteUUID
         parent_event = self.__call_events[parent_event_uuid]
 
-        self.__event_loop.run_until_complete(self.__exec_start_suite(start_suite, temp_uuids, parent_event))
+        self.__submit(self.__exec_start_suite(start_suite, temp_uuids, parent_event), start_suite_event)
         return temp_uuids
 
     def start_test(self, start_test: StartTest) -> UUID:
@@ -172,7 +249,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = start_test_event
 
         parent_event = self.__call_events[start_test.suiteUUID]
-        self.__event_loop.run_until_complete(self.__exec_start_test(start_test, temp_uuid, parent_event))
+        self.__submit(self.__exec_start_test(start_test, temp_uuid, parent_event), start_test_event)
         return temp_uuid
 
     def finish_test(self, test_uuid: UUID, finish_test: FinishTest) -> None:
@@ -188,7 +265,7 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_test_event
 
         parent_event = self.__call_events[test_uuid]
-        asyncio.ensure_future(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event))
+        self.__submit(self.__exec_finish_test(test_uuid, finish_test, temp_uuid, parent_event), finish_test_event)
 
     def start_step(self, start_step: StartStep) -> UUID:
         """
@@ -209,7 +286,7 @@ class OrangebeardClient:
 
         parent_event = self.__call_events[parent_event_uuid]
 
-        self.__event_loop.run_until_complete(self.__exec_start_step(start_step, temp_uuid, parent_event))
+        self.__submit(self.__exec_start_step(start_step, temp_uuid, parent_event), start_step_event)
         return temp_uuid
 
     def finish_step(self, step_uuid: UUID, finish_step: FinishStep) -> None:
@@ -225,11 +302,11 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = finish_step_event
 
         parent_event = self.__call_events[step_uuid]
-        asyncio.ensure_future(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event))
+        self.__submit(self.__exec_finish_step(step_uuid, finish_step, temp_uuid, parent_event), finish_step_event)
 
     def log(self, log: Log) -> UUID:
         """
-        Send a log.
+        Send a log. The returned UUID can be used to attach an attachment to the log (see send_attachment).
 
         Args:
             log (Log): The Log object containing information to store.
@@ -245,8 +322,39 @@ class OrangebeardClient:
             else log.stepUUID
         parent_event = self.__call_events[parent_event_uuid]
 
-        asyncio.ensure_future(self.__exec_log(log, temp_uuid, parent_event))
+        self.__submit(self.__exec_log(log, temp_uuid, parent_event), log_event)
         return temp_uuid
+
+    def log_batch(self, log: Log) -> None:
+        """
+        Send a log as part of a batch. Cheaper than log() when producing many logs, but the server does not return
+        a log id, so an attachment cannot be linked to it (use log() for that).
+        Logs are sent when log_batch_size is reached, after log_batch_interval seconds, when a test is finished,
+        and on finish_test_run / flush_logs.
+
+        Args:
+            log (Log): The Log object containing information to store.
+        """
+        log_event = asyncio.Event()
+        temp_uuid = uuid.uuid4()
+        self.__call_events[temp_uuid] = log_event
+
+        parent_event_uuid = log.testUUID if log.stepUUID is None \
+            else log.stepUUID
+        parent_event = self.__call_events[parent_event_uuid]
+
+        self.__submit(self.__exec_log_batch(log, parent_event), log_event)
+
+    def flush_logs(self, timeout: float = None) -> None:
+        """Send all buffered batch logs and wait until that is done."""
+        if self.__event_loop.is_closed() or not self.__loop_thread.is_alive():
+            return
+        self.__run_blocking(self.__exec_wait_and_flush_logs(), timeout=timeout)
+
+    async def __exec_wait_and_flush_logs(self) -> None:
+        for event in list(self.__call_events.values()):  # queued calls (e.g. log_batch) must be buffered first
+            await event.wait()
+        await self.__exec_flush_logs()
 
     def send_attachment(self, attachment: Attachment) -> UUID:
         """
@@ -263,8 +371,10 @@ class OrangebeardClient:
         self.__call_events[temp_uuid] = attachment_event
 
         parent_event = self.__call_events[attachment.AttachmentMetaData.logUUID]
-        asyncio.ensure_future(self.__exec_send_attachment(attachment, temp_uuid, parent_event))
+        self.__submit(self.__exec_send_attachment(attachment, temp_uuid, parent_event), attachment_event)
         return temp_uuid
+
+    # ------------------------------------------------------------------ execution (runs on the client loop)
 
     async def __ensure_client(self):
         if self.__client is None or self.__client.closed:
@@ -326,8 +436,9 @@ class OrangebeardClient:
     async def __exec_finish_test_run(self, test_run_uuid: UUID, finish_test_run: FinishTestRun, direct=False) -> None:
         print(f'Waiting for {len(self.__call_events.values()) + 1} Orangebeard events to finish...')
 
-        for event in self.__call_events.values():
+        for event in list(self.__call_events.values()):
             await event.wait()
+        await self.__exec_flush_logs()
 
         if direct is True:
             real_test_run_uuid = test_run_uuid
@@ -344,6 +455,7 @@ class OrangebeardClient:
         else:
             print('Done. Remember to finish run using CLI!')
 
+        await self.__ensure_client()
         await self.__client.close()
 
     async def __exec_start_suite(self, start_suite: StartSuite, suite_temp_ids: list[UUID],
@@ -382,6 +494,7 @@ class OrangebeardClient:
     async def __exec_finish_test(self, test_uuid: UUID, finish_test: FinishTest, temp_uuid: UUID,
                                  parent_event: Event) -> None:
         await parent_event.wait()
+        await self.__exec_flush_logs()  # logs of a test are sent before the test itself is finished
         test_uuid = await self.__get_real_uuid(test_uuid)
         finish_test.testRunUUID = await self.__get_real_uuid(finish_test.testRunUUID)
 
@@ -439,6 +552,34 @@ class OrangebeardClient:
         actual_uuid = response if response else None
         self.__uuid_mapping[temp_uuid] = actual_uuid
         self.__call_events[temp_uuid].set()
+
+    async def __exec_log_batch(self, log: Log, parent_event: Event) -> None:
+        await parent_event.wait()
+        if log.message.strip() == '':
+            log.message = '_empty_'
+        log.testRunUUID = await self.__get_real_uuid(log.testRunUUID)
+        log.testUUID = await self.__get_real_uuid(log.testUUID)
+        log.stepUUID = await self.__get_real_uuid(log.stepUUID) if log.stepUUID is not None else None
+
+        self.__log_buffer.append(log)
+        if len(self.__log_buffer) >= self.__log_batch_size:
+            await self.__exec_flush_logs()
+        elif self.__log_flush_task is None or self.__log_flush_task.done():
+            self.__log_flush_task = asyncio.ensure_future(self.__flush_logs_later())
+
+    async def __flush_logs_later(self) -> None:
+        await asyncio.sleep(self.__log_batch_interval)
+        await self.__exec_flush_logs()
+
+    async def __exec_flush_logs(self) -> None:
+        if not self.__log_buffer:
+            return
+        logs, self.__log_buffer = self.__log_buffer, []
+        await self.__make_api_request(
+            'POST',
+            f'listener/v3/{self.__project_name}/log/batch',
+            _JsonList(logs)
+        )
 
     async def __exec_send_attachment(self, attachment: Attachment, temp_uuid: UUID, parent_event: Event) -> None:
         await parent_event.wait()
