@@ -7,8 +7,9 @@ from orangebeard.entity.Attribute import Attribute
 
 
 def get_attributes_from_string(string_attr: str) -> List[Attribute]:
-    return [Attribute(*attribute.partition(':')[::2]) for attribute in
-            string_attr.split(';')] if string_attr is not None else []
+    """Parse 'key:value;tag'."""
+    # split() yields one part for a tag, which Attribute takes as a value without a key
+    return [Attribute(*text.split(':', 1)) for text in (string_attr or '').split(';') if text.strip()]
 
 
 def _create_attribute_objects(attributes_data: Optional[list]) -> List[Attribute]:
