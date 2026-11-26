@@ -35,6 +35,9 @@ def main():
     config.project = args.project
     config.testset = args.testset
     config.description = args.description
+    # The CLI starts and finishes runs itself. With ORANGEBEARD_TESTRUN_UUID (set for the tests that report into the
+    # run) the client would regard the run as managed elsewhere, and 'finish' would not finish it.
+    config.testrun_uuid = None
 
     if args.attributes is not None:
         config.attributes.extend(AutoConfig.get_attributes_from_string(args.attributes))
